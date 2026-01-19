@@ -63,6 +63,8 @@ memory_directory/cache/research_cache/*
 
 # Config (protect settings but keep structure)
 memory_directory/config/settings.json
+memory_directory/config/encryption.key.enc
+memory_directory/config/certs/
 !memory_directory/config/.gitkeep
 
 # API keys

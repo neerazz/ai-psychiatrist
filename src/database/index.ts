@@ -167,3 +167,8 @@ export function closeDatabases(): void {
 export { sqliteManager } from './sqlite.js';
 export { qdrantManager, COLLECTIONS } from './qdrant.js';
 export { initializeSchema, verifySchema } from './schema.js';
+
+// Re-export repositories
+export { patientRepository } from './repositories/patient.repository.js';
+export { sessionRepository } from './repositories/session.repository.js';
+export { auditRepository } from './repositories/audit.repository.js';
