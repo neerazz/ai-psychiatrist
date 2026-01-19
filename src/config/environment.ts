@@ -268,3 +268,25 @@ export function createAppConfig(env: EnvironmentVariables): AppConfig {
 const env = loadEnvironment();
 export const appConfig = createAppConfig(env);
 export const environmentVariables = env;
+
+/**
+ * Get convenient access to configuration values
+ */
+export function getConfig(): {
+  anthropicApiKey: string | undefined;
+  geminiApiKey: string | undefined;
+  openaiApiKey: string | undefined;
+  nodeEnv: string;
+  port: number;
+  modelMode: ModelMode;
+} {
+  return {
+    anthropicApiKey: env.ANTHROPIC_API_KEY,
+    geminiApiKey: env.GEMINI_API_KEY,
+    openaiApiKey: env.OPENAI_API_KEY,
+    nodeEnv: env.NODE_ENV,
+    port: env.PORT,
+    modelMode: appConfig.modelConfig.mode
+  };
+}
+

@@ -1,6 +1,7 @@
 version: '3.8'
 
 services:
+  # Qdrant Vector Database
   qdrant:
     image: qdrant/qdrant:latest
     container_name: ai-psychiatrist-qdrant
@@ -12,3 +13,44 @@ services:
     environment:
       - QDRANT__SERVICE__GRPC_PORT=6334
     restart: unless-stopped
+
+  # Ollama - Local LLM Inference (Open Source)
+  # Supports llama3, mistral, phi3, gemma, and more
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ai-psychiatrist-ollama
+    ports:
+      - "11434:11434"  # Ollama API
+    volumes:
+      - ollama_models:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]  # Use GPU if available
+
+  # Piper TTS - Open Source High Quality TTS
+  # https://github.com/rhasspy/piper
+  piper:
+    image: rhasspy/wyoming-piper:latest
+    container_name: ai-psychiatrist-piper
+    ports:
+      - "10200:10200"
+    volumes:
+      - piper_models:/data
+    environment:
+      - PIPER_UPDATE_VOICES=true
+      - PIPER_VOICE=en_US-amy-medium
+    restart: unless-stopped
+    command: --voice en_US-amy-medium
+
+volumes:
+  ollama_models:
+    driver: local
+  piper_models:
+    driver: local
