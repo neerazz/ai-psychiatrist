@@ -980,6 +980,80 @@ When an error occurs during your work:
 
 ---
 
+## 💎 ARTICLE XII: The Kiro Protocol (Spec-Driven Development)
+
+> **Rule**: Code is a projection of Specification. They MUST remain in sync. We simulate the "Kiro IDE" environment.
+
+### The "Kiro" Core Loop
+
+The project is built using the **Kiro Spec-Driven Methodology**. This ensures that every line of code traces back to a requirement and design decision.
+
+**The Flow is Strict and Bidirectional:**
+
+```mermaid
+graph TD
+    R[Requirements.md] <-->|Defines| D[Design.md]
+    D <-->|Blueprints| T[Tasks.md]
+    T <-->|Instructs| C[Code]
+```
+
+### 1. Forward Propagation (Req → Code)
+
+A feature CANNOT exist in code unless it flows down this chain:
+
+1. **Requirement**: "The user needs to see X." (in `requirements.md`)
+2. **Design**: "We will build X using Component Y with Schema Z." (in `design.md`)
+3. **Task**: "Create file A, write function B, using Schema Z." (in `tasks.md`)
+4. **Code**: `function B() { ... }`
+
+**VIOLATION**: Writing code that is not defined in `tasks.md`, or working on a task that is not supported by `design.md`.
+
+### 2. Backward Propagation (Discovery → Spec)
+
+If you find a problem while coding (e.g., "Schema Z is missing a field"):
+
+1. 🛑 **STOP CODING IMMEDIATELY.**
+2. 📝 **UPDATE Design**: Add the missing field to `design.md`.
+3. 📝 **UPDATE Requirement** (if needed): "User also needs Y."
+4. 📝 **UPDATE Task**: "Update function B to include new field."
+5. ▶️ **RESUME CODING.**
+
+**CRITICAL**: You are NOT allowed to "just fix it" in the code. You MUST fix the Specification first. The Code is just a reflection of the Spec.
+
+### 3. The "Kiro IDE" Simulation
+
+As the AI Agent, you are the engine of this methodology. You must enforce these constraints on yourself:
+
+- **Constraint A**: You cannot create a file unless it's listed in a Task.
+- **Constraint B**: You cannot use a variable name that disagrees with `design.md` or `data_schemas.md`.
+- **Constraint C**: You must strictly interpret "Reference" links in Tasks.
+
+### 4. Task Definition Standard
+
+All tasks in `tasks.md` MUST follow the **Kiro Standard Format**:
+
+| Section | Content | Rule |
+|---------|---------|------|
+| **References** | Links to Req IDs and Design Sections | **MANDATORY**: Must be precise (e.g., `R21`, `Schema S3`). |
+| **Prerequisites** | Other tasks that must be done first | **BLOCKING**: Cannot start if prerequisites aren't marked `[x]`. |
+| **Context** | Why are we doing this? | **ALIGNMENT**: Context comes from Specs. |
+| **Steps** | Atomic, numbered instructions | **ATOMICITY**: Each step is a single action or tool call. |
+| **Verification** | Checklists for success | **QUALITY**: Must include manual and automated checks. |
+
+### 5. Task Execution Protocol
+
+When executing a task from `tasks.md`:
+
+1. **READ** the References (open the spec files).
+2. **VERIFY** the Context (ensure specs haven't changed).
+3. **EXECUTE** the Steps sequentially.
+4. **CHECK** the Verification items one by one.
+5. **MARK** the task as complete `[x]`.
+
+If a Reference is missing or broken, **DO NOT PROCEED**. Fix the task definition first (Backward Propagation).
+
+---
+
 ## Amendment Process
 
 Modifications to this constitution require:
@@ -1017,3 +1091,4 @@ _Based on: [spec-kit Constitutional Foundation](https://github.com/neerazz/spec-
 9. **CHECK** existing solutions first
 10. **VERIFY** end-to-end before closing ANY task
 11. **OWN** every problem - research and solve it yourself
+12. **SYNC** specs bidirectionally - Spec → Code AND Code → Spec
