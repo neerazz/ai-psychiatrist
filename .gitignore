@@ -31,23 +31,39 @@ build/
 logs/
 *.log
 
+# Memory Directory - Protect sensitive data while preserving structure
+# Patient data (sensitive)
+memory_directory/patients/*
+!memory_directory/patients/.gitkeep
+
+# Databases (local data)
+memory_directory/databases/*.db
+memory_directory/databases/*.db-journal
+memory_directory/databases/vectors/*
+!memory_directory/databases/.gitkeep
+!memory_directory/databases/vectors/.gitkeep
+
 # AI Models (large files)
-memory_directory/models/
+memory_directory/models/*
+!memory_directory/models/.gitkeep
 *.gguf
 *.bin
 *.safetensors
 
-# Databases (local data)
-memory_directory/databases/
-*.db
-*.db-journal
-
-# Patient data (sensitive)
-memory_directory/patients/
+# Logs
+memory_directory/logs/*.log
+!memory_directory/logs/.gitkeep
 
 # Cache
 .cache/
-memory_directory/cache/
+memory_directory/cache/context_cache/*
+memory_directory/cache/research_cache/*
+!memory_directory/cache/context_cache/.gitkeep
+!memory_directory/cache/research_cache/.gitkeep
+
+# Config (protect settings but keep structure)
+memory_directory/config/settings.json
+!memory_directory/config/.gitkeep
 
 # API keys
 *.key

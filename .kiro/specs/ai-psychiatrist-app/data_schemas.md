@@ -1082,6 +1082,62 @@ retrieval_config:
       }
     },
 
+    "embedding_config": {
+      "type": "object",
+      "description": "Vector embedding provider configuration for semantic search",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": ["local", "openai", "ollama", "custom"],
+          "default": "local",
+          "description": "Embedding provider to use. 'local' uses Transformers.js (no API key required)"
+        },
+        "model": {
+          "type": "string",
+          "description": "Model identifier for the selected provider",
+          "default": "Xenova/all-MiniLM-L6-v2"
+        },
+        "dimensions": {
+          "type": "integer",
+          "description": "Vector dimensions produced by the embedding model",
+          "default": 384
+        },
+        "batch_size": {
+          "type": "integer",
+          "description": "Number of texts to embed in a single batch",
+          "default": 10,
+          "minimum": 1,
+          "maximum": 100
+        },
+        "openai_config": {
+          "type": "object",
+          "description": "OpenAI-specific configuration (when provider='openai')",
+          "properties": {
+            "model": {"type": "string", "default": "text-embedding-3-large"},
+            "dimensions": {"type": "integer", "default": 3072}
+          }
+        },
+        "ollama_config": {
+          "type": "object",
+          "description": "Ollama-specific configuration (when provider='ollama')",
+          "properties": {
+            "model": {"type": "string", "default": "nomic-embed-text"},
+            "dimensions": {"type": "integer", "default": 768},
+            "host": {"type": "string", "default": "http://localhost:11434"}
+          }
+        },
+        "custom_config": {
+          "type": "object",
+          "description": "Custom provider configuration (when provider='custom')",
+          "properties": {
+            "endpoint": {"type": "string"},
+            "dimensions": {"type": "integer"},
+            "headers": {"type": "object"}
+          }
+        }
+      }
+    },
+
     "ui_config": {
       "type": "object",
       "properties": {
