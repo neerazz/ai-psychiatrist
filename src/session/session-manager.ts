@@ -103,13 +103,16 @@ export class SessionManager extends EventEmitter {
      * Load patient (AWAITING_PATIENT → READY)
      */
     public async loadPatient(patientId: string): Promise<boolean> {
-        logger.info('Loading patient', { patientId });
+        const currentState = this.stateMachine.getState();
+        logger.info(`Loading patient ${patientId}. Current state: ${currentState}`);
 
         // If we're in ERROR state, reset the state machine to recover
-        if (this.stateMachine.getState() === 'ERROR') {
+        if (currentState === 'ERROR') {
             logger.info('Recovering from ERROR state');
             this.reset();
+            // Re-initialize to get back to proper state
             await this.initialize();
+            logger.info(`State after recovery: ${this.stateMachine.getState()}`);
         }
 
         // Verify patient exists
@@ -142,54 +145,69 @@ export class SessionManager extends EventEmitter {
      * Start a new session (READY → ACTIVE_LISTENING)
      */
     public async startSession(): Promise<string | null> {
-        if (!this.currentPatientId) {
-            logger.error('Cannot start session: no patient loaded');
-            return null;
-        }
+        try {
+            logger.info('Starting session...');
+            if (!this.currentPatientId) {
+                logger.error('Cannot start session: no patient loaded');
+                return null;
+            }
 
-        if (!this.stateMachine.canTrigger('session_started')) {
-            logger.error('Cannot start session from current state', {
-                state: this.stateMachine.getState()
+            if (!this.stateMachine.canTrigger('session_started')) {
+                logger.error('Cannot start session from current state', {
+                    state: this.stateMachine.getState()
+                });
+                return null;
+            }
+
+            // Create session record
+            const sessionInput: CreateSessionInput = {
+                patient_id: this.currentPatientId,
+                risk_level_start: 'low'
+            };
+
+            logger.info('Creating session record...');
+            const sessionId = sessionRepository.create(sessionInput);
+            logger.info('Session record created', { sessionId });
+
+            // Update state machine context
+            this.stateMachine.updateContext({
+                sessionId,
+                startTime: new Date(),
+                turnNumber: 0
             });
-            return null;
+            logger.info('Context updated');
+
+            // Start session timer
+            this.startSessionTimer();
+            logger.info('Timer started');
+
+            // Start auto-persistence
+            this.persistence.startAutoPersist();
+            logger.info('Auto-persist started');
+
+            // Trigger state transition
+            this.stateMachine.trigger('session_started');
+            logger.info('State machine triggered session_started');
+
+            // Update patient session info
+            patientRepository.updateSessionInfo(this.currentPatientId);
+            logger.info('Patient session info updated');
+
+            logger.info('Session started', { sessionId, patientId: this.currentPatientId });
+            logAuditEvent('session_event', this.currentPatientId, sessionId, 'session_started');
+
+            this.emit('session:started', {
+                sessionId,
+                patientId: this.currentPatientId
+            });
+
+            return sessionId;
+        } catch (error) {
+            logger.error('CRITICAL: Error in startSession', { error });
+            // FORCE RESET
+            this.stateMachine.forceState('ERROR', (error as Error).message);
+            throw error;
         }
-
-        // Create session record
-        const sessionInput: CreateSessionInput = {
-            patient_id: this.currentPatientId,
-            risk_level_start: 'low'
-        };
-
-        const sessionId = sessionRepository.create(sessionInput);
-
-        // Update state machine context
-        this.stateMachine.updateContext({
-            sessionId,
-            startTime: new Date(),
-            turnNumber: 0
-        });
-
-        // Start session timer
-        this.startSessionTimer();
-
-        // Start auto-persistence
-        this.persistence.startAutoPersist();
-
-        // Trigger state transition
-        this.stateMachine.trigger('session_started');
-
-        // Update patient session info
-        patientRepository.updateSessionInfo(this.currentPatientId);
-
-        logger.info('Session started', { sessionId, patientId: this.currentPatientId });
-        logAuditEvent('session_event', this.currentPatientId, sessionId, 'session_started');
-
-        this.emit('session:started', {
-            sessionId,
-            patientId: this.currentPatientId
-        });
-
-        return sessionId;
     }
 
     /**

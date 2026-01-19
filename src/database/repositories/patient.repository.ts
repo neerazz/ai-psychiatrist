@@ -17,11 +17,15 @@ export interface PatientRecord {
   last_session_date: string | null;
   total_sessions: number;
   current_risk_level: 'low' | 'moderate' | 'high' | 'crisis';
+  focus_areas: string; // JSON string
+  todos: string; // JSON string
 }
 
 export interface CreatePatientInput {
   encryption_key_id: string;
   current_risk_level?: 'low' | 'moderate' | 'high' | 'crisis';
+  focus_areas?: string[];
+  todos?: string[];
 }
 
 /**
@@ -38,11 +42,20 @@ export class PatientRepository {
     const patientId = uuidv4();
 
     const stmt = db.prepare(`
-      INSERT INTO patients (patient_id, encryption_key_id, current_risk_level)
-      VALUES (?, ?, ?)
+      INSERT INTO patients (
+        patient_id, encryption_key_id, current_risk_level,
+        focus_areas, todos
+      )
+      VALUES (?, ?, ?, ?, ?)
     `);
 
-    stmt.run(patientId, input.encryption_key_id, input.current_risk_level || 'low');
+    stmt.run(
+      patientId,
+      input.encryption_key_id,
+      input.current_risk_level || 'low',
+      JSON.stringify(input.focus_areas || []),
+      JSON.stringify(input.todos || [])
+    );
 
     logAuditEvent('data_modify', patientId, null, 'patient_created');
     logger.info('Patient created', { patientId });

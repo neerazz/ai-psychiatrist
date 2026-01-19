@@ -33,7 +33,9 @@ CREATE TABLE IF NOT EXISTS patients (
     is_active INTEGER NOT NULL DEFAULT 1,
     last_session_date TEXT,
     total_sessions INTEGER DEFAULT 0,
-    current_risk_level TEXT DEFAULT 'low' CHECK (current_risk_level IN ('low', 'moderate', 'high', 'crisis'))
+    current_risk_level TEXT DEFAULT 'low' CHECK (current_risk_level IN ('low', 'moderate', 'high', 'crisis')),
+    focus_areas TEXT, -- JSON array of strings
+    todos TEXT -- JSON array of strings
 );
 
 CREATE INDEX IF NOT EXISTS idx_patients_active ON patients(is_active);
@@ -193,14 +195,14 @@ CREATE INDEX IF NOT EXISTS idx_highlights_type ON conversation_highlights(highli
  * Reference: AGENTS.md Article III (Test-First), Gate 1 (Pre-Code checks)
  */
 export function initializeSchema(): void {
-  logger.info('Initializing database schema...');
+    logger.info('Initializing database schema...');
 
-  const db = sqliteManager.getDb();
+    const db = sqliteManager.getDb();
 
-  // Execute schema SQL
-  db.exec(SCHEMA_SQL);
+    // Execute schema SQL
+    db.exec(SCHEMA_SQL);
 
-  logger.info('Database schema initialized successfully');
+    logger.info('Database schema initialized successfully');
 }
 
 /**
@@ -210,26 +212,26 @@ export function initializeSchema(): void {
  * @returns Object with validation status and list of missing tables
  */
 export function verifySchema(): { valid: boolean; missingTables: string[] } {
-  const requiredTables = [
-    'patients',
-    'sessions',
-    'session_events',
-    'crisis_events',
-    'embedding_jobs',
-    'audit_log',
-    'conversation_highlights'
-  ];
+    const requiredTables = [
+        'patients',
+        'sessions',
+        'session_events',
+        'crisis_events',
+        'embedding_jobs',
+        'audit_log',
+        'conversation_highlights'
+    ];
 
-  const db = sqliteManager.getDb();
-  const existingTables = db
-    .prepare("SELECT name FROM sqlite_master WHERE type='table'")
-    .all()
-    .map((row: any) => row.name);
+    const db = sqliteManager.getDb();
+    const existingTables = db
+        .prepare("SELECT name FROM sqlite_master WHERE type='table'")
+        .all()
+        .map((row: any) => row.name);
 
-  const missingTables = requiredTables.filter(t => !existingTables.includes(t));
+    const missingTables = requiredTables.filter(t => !existingTables.includes(t));
 
-  return {
-    valid: missingTables.length === 0,
-    missingTables
-  };
+    return {
+        valid: missingTables.length === 0,
+        missingTables
+    };
 }

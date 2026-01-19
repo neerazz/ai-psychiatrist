@@ -3,6 +3,7 @@
 // Reference: Requirements R1 (Session Management), R37 (Security)
 
 import express, { Request, Response, Router, NextFunction } from 'express';
+import fs from 'fs/promises';
 import { logger, logAuditEvent } from '../utils/logger.js';
 import { getSessionManager } from '../session/session-manager.js';
 import { getAgentCoordinator } from '../agents/agent-coordinator.js';
@@ -61,8 +62,15 @@ export function createApiRouter(): Router {
                 return res.status(404).json({ error: 'Patient not found' });
             }
 
+            // Parse JSON fields for frontend
+            const parsedPatient = {
+                ...patient,
+                focus_areas: patient.focus_areas ? JSON.parse(patient.focus_areas) : [],
+                todos: patient.todos ? JSON.parse(patient.todos) : []
+            };
+
             logAuditEvent('data_access', patientId, null, 'patient_viewed');
-            res.json({ patient });
+            res.json({ patient: parsedPatient });
         } catch (error) {
             const patientId = req.params.patientId as string;
             logger.error('Failed to get patient', { error, patientId });
@@ -72,14 +80,16 @@ export function createApiRouter(): Router {
 
     router.post('/patients', (req: Request, res: Response) => {
         try {
-            const { encryption_key_id } = req.body;
+            const { encryption_key_id, focus_areas, todos } = req.body;
             if (!encryption_key_id) {
                 return res.status(400).json({ error: 'encryption_key_id is required' });
             }
 
             const patientId = patientRepository.create({
                 encryption_key_id,
-                current_risk_level: 'low'
+                current_risk_level: 'low',
+                focus_areas,
+                todos
             });
 
             logAuditEvent('data_modify', patientId, null, 'patient_created');
@@ -103,7 +113,7 @@ export function createApiRouter(): Router {
         }
     });
 
-    router.get('/sessions/:sessionId', (req: Request, res: Response) => {
+    router.get('/sessions/:sessionId', async (req: Request, res: Response) => {
         try {
             const sessionId = req.params.sessionId as string;
             const session = sessionRepository.getById(sessionId);
@@ -111,8 +121,27 @@ export function createApiRouter(): Router {
                 return res.status(404).json({ error: 'Session not found' });
             }
 
+            let transcript = null;
+            let summary = null;
+
+            if (session.transcript_path) {
+                try {
+                    transcript = await fs.readFile(session.transcript_path, 'utf-8');
+                } catch (e) {
+                    logger.warn('Failed to read transcript', { path: session.transcript_path, error: e });
+                }
+            }
+
+            if (session.summary_path) {
+                try {
+                    summary = await fs.readFile(session.summary_path, 'utf-8');
+                } catch (e) {
+                    logger.warn('Failed to read summary', { path: session.summary_path, error: e });
+                }
+            }
+
             logAuditEvent('data_access', session.patient_id ?? 'unknown', sessionId, 'session_viewed');
-            res.json({ session });
+            res.json({ session: { ...session, transcript_content: transcript, summary_content: summary } });
         } catch (error) {
             const sessionId = req.params.sessionId as string;
             logger.error('Failed to get session', { error, sessionId });
@@ -199,6 +228,18 @@ export function createApiRouter(): Router {
         } catch (error) {
             logger.error('Failed to end session', { error });
             res.status(500).json({ error: 'Failed to end session' });
+        }
+    });
+
+    // Reset session (force reset state machine)
+    router.post('/session/reset', (_req: Request, res: Response) => {
+        try {
+            const sessionManager = getSessionManager();
+            sessionManager.reset();
+            res.json({ message: 'Session reset successfully', state: sessionManager.getState() });
+        } catch (error) {
+            logger.error('Failed to reset session', { error });
+            res.status(500).json({ error: 'Failed to reset session' });
         }
     });
 
