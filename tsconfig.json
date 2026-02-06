@@ -12,9 +12,8 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "declaration": true,
-    "declarationMap": true,
     "sourceMap": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "memory_directory"]
+  "exclude": ["node_modules", "dist", "src_legacy", "memory_directory"]
 }
