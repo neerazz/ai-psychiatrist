@@ -36,7 +36,7 @@ export class DrSterlingAgent {
 
     // Append external context
     if (context) {
-      prompt += `\n\n[PATIENT CONTEXT - use this to personalize your response, do not reference it explicitly]\n${context}`;
+      prompt += `\n\n[PAST PATIENT PROFILE]\n${context}\n\n[INSTRUCTION: Explicitly acknowledge this patient profile to establish continuity.]`;
     }
 
     // Build conversation messages

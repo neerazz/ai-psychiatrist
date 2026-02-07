@@ -24,7 +24,6 @@ export function createChatFunction(provider: AIProvider, model: string, apiKey: 
         const anthropicMessages = messages
           .filter(m => m.role !== 'system' && m.content.trim().length > 0)
           .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
-        console.log('[DEBUG anthropic non-streaming]', JSON.stringify(anthropicMessages, null, 2));
         const response = await anthropicClient.messages.create({
           model, max_tokens: maxTokens, temperature, system: systemPrompt, messages: anthropicMessages,
         });
@@ -107,8 +106,6 @@ export function createStreamChatFunction(provider: AIProvider, model: string, ap
         const anthropicMessages = messages
           .filter(m => m.role !== 'system' && m.content.trim().length > 0)
           .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
-        console.log('[DEBUG anthropic streaming]', JSON.stringify(anthropicMessages, null, 2));
-
         const stream = anthropicClient.messages.stream({
           model, max_tokens: maxTokens, temperature, system: systemPrompt, messages: anthropicMessages,
         });

@@ -67,7 +67,7 @@ export class DrSterlingAgent {
   async greet(context: string, bucket?: TopicBucket): Promise<string> {
     let prompt = this.systemPrompt;
     if (context) {
-      prompt += `\n\n[PATIENT CONTEXT - use this to personalize your greeting, do not reference it explicitly]\n${context}`;
+      prompt += `\n\n[PAST PATIENT PROFILE]\n${context}\n\n[INSTRUCTION: Explicitly acknowledge this patient profile to establish continuity in your greeting.]`;
     }
 
     // If there are carry-over topics, let Sterling know
@@ -82,7 +82,7 @@ export class DrSterlingAgent {
     }
 
     prompt += `\n\n[INSTRUCTION: This is the very beginning of a new session. Generate a warm, brief opening check-in (1-2 sentences). Be genuine and conversational, not scripted. Do not introduce yourself by name unless it feels natural.]`;
-    return this.chatFn(prompt, [], { maxTokens: 512 });
+    return this.chatFn(prompt, [{ role: 'user', content: '[New session starting]' }], { maxTokens: 512 });
   }
 
   /**
@@ -104,7 +104,7 @@ export class DrSterlingAgent {
     }
 
     if (context) {
-      prompt += `\n\n[PATIENT CONTEXT - use this to personalize your response, do not reference it explicitly]\n${context}`;
+      prompt += `\n\n[PAST PATIENT PROFILE]\n${context}\n\n[INSTRUCTION: Explicitly acknowledge this patient profile to establish continuity.]`;
     }
 
     // Inject topic bucket awareness

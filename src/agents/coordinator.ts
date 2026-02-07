@@ -79,7 +79,7 @@ export class AgentCoordinator extends EventEmitter {
   /**
    * End session: analyst generates a structured summary.
    */
-  async endSession(messages: Message[]): Promise<SessionSummary> {
-    return this.analyst.summarize(messages);
+  async endSession(messages: Message[], context?: string): Promise<SessionSummary> {
+    return this.analyst.summarize(messages, context);
   }
 }

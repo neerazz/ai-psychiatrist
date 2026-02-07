@@ -156,21 +156,21 @@ export class AgentCoordinator {
     const crisisPromise = regexCrisis.tier
       ? this.crisisDetector.assess(input, messages)
       : Promise.resolve<CrisisResult>({
-          detected: false, tier: null, indicators: [], confidence: 0,
-          regexScore: 0, aiScore: 0, action: 'CONTINUE',
-        });
+        detected: false, tier: null, indicators: [], confidence: 0,
+        regexScore: 0, aiScore: 0, action: 'CONTINUE',
+      });
 
     const sterlingCrisis: CrisisResult = regexCrisis.tier
       ? {
-          detected: true, tier: regexCrisis.tier as 1 | 2,
-          indicators: regexCrisis.indicators,
-          confidence: regexCrisis.score, regexScore: regexCrisis.score, aiScore: 0,
-          action: regexCrisis.tier === 2 ? 'ELEVATED' : 'ATTENTION',
-        }
+        detected: true, tier: regexCrisis.tier as 1 | 2,
+        indicators: regexCrisis.indicators,
+        confidence: regexCrisis.score, regexScore: regexCrisis.score, aiScore: 0,
+        action: regexCrisis.tier === 2 ? 'ELEVATED' : 'ATTENTION',
+      }
       : {
-          detected: false, tier: null, indicators: [], confidence: 0,
-          regexScore: 0, aiScore: 0, action: 'CONTINUE',
-        };
+        detected: false, tier: null, indicators: [], confidence: 0,
+        regexScore: 0, aiScore: 0, action: 'CONTINUE',
+      };
 
     // Step 4: Dr. Sterling streams response (MAIN THREAD)
     // Uses sliding window if conversation is long
@@ -201,7 +201,7 @@ export class AgentCoordinator {
    * End session: analyst generates a structured summary.
    */
   async endSession(messages: Message[]): Promise<{ summary: SessionSummary; topicBucket: TopicBucket }> {
-    const summary = await this.analyst.summarize(messages);
+    const summary = await this.analyst.summarize(messages, this.sessionContext);
     return { summary, topicBucket: this.topicBucket };
   }
 }

@@ -13,14 +13,20 @@ export class AnalystAgent {
     this.systemPrompt = systemPrompt;
   }
 
-  async summarize(messages: Message[]): Promise<SessionSummary> {
+  async summarize(messages: Message[], patientProfile?: string): Promise<SessionSummary> {
+    let content = `Summarize this therapy session:\n\n${formatMessages(messages)}`;
+
+    if (patientProfile) {
+      content = `[PAST PATIENT PROFILE]\n${patientProfile}\n\n` + content;
+    }
+
     const response = await this.chatFn(
       this.systemPrompt,
       [{
         role: 'user',
-        content: `Summarize this therapy session:\n\n${formatMessages(messages)}`,
+        content,
       }],
-      { temperature: 0.3, maxTokens: 1024 },
+      { temperature: 0.3, maxTokens: 4096 }, // Increased maxTokens for detailed analysis
     );
 
     try {
@@ -28,11 +34,22 @@ export class AnalystAgent {
       return JSON.parse(jsonStr) as SessionSummary;
     } catch {
       return {
-        mainTopics: ['Unable to parse summary'],
+        sessionTitle: 'Session Analysis (Fallback)',
+        mainTopics: ['Unable to parse structured summary'],
         emotionalJourney: response.slice(0, 200),
         keyInsights: [],
+        clinicalAnalysis: {
+          defenseMechanisms: [],
+          cognitiveDistortions: [],
+          attachmentIndicators: [],
+        },
+        researchTopics: [],
+        homework: [],
         recommendations: [],
-        riskAssessment: 'unknown',
+        riskAssessment: {
+          level: 'low',
+          notes: 'Automatic fallback due to parsing error',
+        },
       };
     }
   }

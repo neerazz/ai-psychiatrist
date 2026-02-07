@@ -35,11 +35,26 @@ export interface CrisisResult {
 }
 
 export interface SessionSummary {
+  sessionTitle: string;
   mainTopics: string[];
   emotionalJourney: string;
   keyInsights: string[];
+  clinicalAnalysis: {
+    defenseMechanisms: string[];
+    cognitiveDistortions: string[];
+    attachmentIndicators: string[];
+  };
+  researchTopics: {
+    topic: string;
+    clinicalContext: string;
+    suggestedReading: string[];
+  }[];
+  homework: string[];
   recommendations: string[];
-  riskAssessment: string;
+  riskAssessment: {
+    level: 'low' | 'medium' | 'high';
+    notes: string;
+  };
 }
 
 export interface Config {

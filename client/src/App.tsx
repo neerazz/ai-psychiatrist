@@ -44,6 +44,8 @@ export default function App() {
   const [sessionActive, setSessionActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sidecarOk, setSidecarOk] = useState<boolean | null>(null);
+  // Loading phase: null → idle, 'data' → fetching context/sessions, 'greeting' → generating opening
+  const [loadingPhase, setLoadingPhase] = useState<'data' | 'greeting' | null>(null);
 
   // Topic bucket state
   const [topicBucket, setTopicBucket] = useState<TopicBucket>(emptyBucket());
@@ -53,7 +55,10 @@ export default function App() {
   const contextRef = useRef('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { speak, stop: stopSpeaking, isSpeaking, isSupported: voiceOutputSupported } = useSpeechSynthesis();
+  const { speak, enqueue: enqueueSpeech, flush: flushSpeech, stop: stopSpeaking, isSpeaking, isSupported: voiceOutputSupported } = useSpeechSynthesis();
+
+  // Buffer for accumulating streamed tokens into sentences for TTS
+  const ttsBufferRef = useRef('');
 
   // --- Voice send handler (called directly by mic when speech is finalized) ---
   const handleSend = useCallback(async (input: string) => {
@@ -63,6 +68,7 @@ export default function App() {
     }
 
     stopSpeaking();
+    ttsBufferRef.current = '';
     setError(null);
     const userMessage: Message = { role: 'user', content: input };
     setMessages(prev => [...prev, userMessage]);
@@ -70,16 +76,46 @@ export default function App() {
     setStreamingContent('');
 
     try {
+      // Reset TTS buffer for this turn
+      ttsBufferRef.current = '';
+      const shouldSpeak = settings.voiceEnabled && voiceOutputSupported;
+
       // Dr. Sterling streams tokens — we update UI incrementally
+      // and enqueue complete sentences for TTS as they arrive
       const result = await coordinatorRef.current.processInput(
         input,
         messages,
         (token: string) => {
           setStreamingContent(prev => prev + token);
+
+          // Incrementally enqueue sentences for TTS as they stream in
+          if (shouldSpeak) {
+            ttsBufferRef.current += token;
+
+            // Check for sentence boundaries: .  !  ?  followed by space or end
+            // Also handle "..." as a pause boundary
+            const sentenceEndPattern = /([.!?]+["'\u201d\u2019)}\]]*\s)|(\.\.\.\s)/;
+            let match: RegExpExecArray | null;
+            while ((match = sentenceEndPattern.exec(ttsBufferRef.current)) !== null) {
+              const endIdx = match.index + match[0].length;
+              const sentence = ttsBufferRef.current.slice(0, endIdx).trim();
+              ttsBufferRef.current = ttsBufferRef.current.slice(endIdx);
+              if (sentence) {
+                enqueueSpeech(sentence);
+              }
+            }
+          }
         },
       );
 
-      // Streaming done — commit the final message
+      // Streaming done — flush any remaining buffered text to TTS
+      if (shouldSpeak && ttsBufferRef.current.trim()) {
+        enqueueSpeech(ttsBufferRef.current.trim());
+        ttsBufferRef.current = '';
+      }
+      flushSpeech();
+
+      // Commit the final message
       setStreamingContent('');
       setLatestCrisis(result.crisis);
       setTopicBucket(result.topicBucket);
@@ -90,11 +126,6 @@ export default function App() {
       if (result.topicBucket.active.length > 0 || result.topicBucket.pending.length > 0) {
         setShowBucket(true);
       }
-
-      // Speak the complete response
-      if (settings.voiceEnabled && voiceOutputSupported) {
-        speak(result.response);
-      }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Something went wrong';
       setError(errorMsg);
@@ -102,12 +133,13 @@ export default function App() {
     }
 
     setIsProcessing(false);
-  }, [messages, settings.voiceEnabled, voiceOutputSupported, speak, stopSpeaking]);
+  }, [messages, settings.voiceEnabled, voiceOutputSupported, enqueueSpeech, flushSpeech, stopSpeaking]);
 
   // --- Speech recognition with callback that auto-sends ---
   const handleVoiceResult = useCallback((text: string) => {
     // Stop any TTS that might be playing (user started talking over it)
     stopSpeaking();
+    ttsBufferRef.current = '';
     handleSend(text);
   }, [handleSend, stopSpeaking]);
 
@@ -130,17 +162,19 @@ export default function App() {
   }, [messages, streamingContent, isProcessing]);
 
   // Auto-restart listening after TTS finishes speaking
+  // Skip if the last mic attempt ended with an error (e.g. network unavailable)
   useEffect(() => {
-    if (prevSpeakingRef.current && !isSpeaking && settings.voiceEnabled && voiceInputSupported && sessionActive && !isProcessing) {
+    if (prevSpeakingRef.current && !isSpeaking && settings.voiceEnabled && voiceInputSupported && sessionActive && !isProcessing && !voiceError) {
       const timer = setTimeout(() => startListening(), 300);
       return () => clearTimeout(timer);
     }
     prevSpeakingRef.current = isSpeaking;
-  }, [isSpeaking, settings.voiceEnabled, voiceInputSupported, sessionActive, isProcessing, startListening]);
+  }, [isSpeaking, settings.voiceEnabled, voiceInputSupported, sessionActive, isProcessing, startListening, voiceError]);
 
   // Auto-restart listening after AI processing completes (covers case where TTS is unavailable or disabled)
+  // Skip if the last mic attempt ended with an error (e.g. network unavailable)
   useEffect(() => {
-    if (prevProcessingRef.current && !isProcessing && settings.voiceEnabled && voiceInputSupported && sessionActive) {
+    if (prevProcessingRef.current && !isProcessing && settings.voiceEnabled && voiceInputSupported && sessionActive && !voiceError) {
       // Wait 700ms to let TTS start if it's going to.
       // If TTS does start, the TTS-based auto-restart will handle mic restart instead.
       const timer = setTimeout(() => {
@@ -151,7 +185,7 @@ export default function App() {
       return () => clearTimeout(timer);
     }
     prevProcessingRef.current = isProcessing;
-  }, [isProcessing, settings.voiceEnabled, voiceInputSupported, sessionActive, startListening]);
+  }, [isProcessing, settings.voiceEnabled, voiceInputSupported, sessionActive, startListening, voiceError]);
 
   // Auto-load config from .env via sidecar — always applies on startup
   useEffect(() => {
@@ -221,7 +255,9 @@ export default function App() {
       window.speechSynthesis.speak(warmup);
     }
 
-    // Load context + past topics in parallel
+    // ── Phase 1: Load user data & historic sessions ──
+    setLoadingPhase('data');
+
     const [externalContext, pastSessions, pastBuckets] = await Promise.all([
       loadContext(),
       loadPastSessions(),
@@ -246,6 +282,9 @@ export default function App() {
         setShowBucket(true);
       }
 
+      // ── Phase 2: Data ready — generate greeting with full context ──
+      setLoadingPhase('greeting');
+
       try {
         const greeting = await coordinatorRef.current.generateGreeting(fullContext);
         const greetingMessage: Message = { role: 'assistant', content: greeting };
@@ -259,6 +298,7 @@ export default function App() {
       }
     }
 
+    setLoadingPhase(null);
     setIsProcessing(false);
   }, [settings.voiceEnabled, voiceOutputSupported, speak]);
 
@@ -286,6 +326,7 @@ export default function App() {
   const handleVoiceStart = useCallback(() => {
     if (isSpeaking) {
       stopSpeaking();
+      ttsBufferRef.current = '';
     }
     startListening();
   }, [isSpeaking, stopSpeaking, startListening]);
@@ -407,6 +448,29 @@ export default function App() {
                 </div>
               )}
 
+              {/* Session preparation loader */}
+              {loadingPhase === 'data' && (
+                <div className="flex flex-col items-center justify-center min-h-[40vh] text-center animate-fade-in">
+                  {/* Spinner */}
+                  <div className="relative w-16 h-16 mb-6">
+                    <div className="absolute inset-0 rounded-full border-2 border-sterling-600/20" />
+                    <div className="absolute inset-0 rounded-full border-2 border-t-sterling-500 animate-spin" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-sterling-500 text-lg font-bold">DS</span>
+                    </div>
+                  </div>
+                  <h3 className="text-white font-medium text-lg mb-2">Preparing your session</h3>
+                  <p className="text-slate-400 text-sm max-w-xs">
+                    Loading your profile and past session history&hellip;
+                  </p>
+                  <div className="flex gap-2 mt-4">
+                    <div className="w-2 h-2 rounded-full bg-sterling-500 animate-pulse" style={{ animationDelay: '0ms' }} />
+                    <div className="w-2 h-2 rounded-full bg-sterling-500 animate-pulse" style={{ animationDelay: '200ms' }} />
+                    <div className="w-2 h-2 rounded-full bg-sterling-500 animate-pulse" style={{ animationDelay: '400ms' }} />
+                  </div>
+                </div>
+              )}
+
               {/* Crisis banner */}
               {latestCrisis && latestCrisis.detected && (
                 <CrisisBanner crisis={latestCrisis} />
@@ -422,8 +486,8 @@ export default function App() {
                 <ChatMessage message={{ role: 'assistant', content: streamingContent }} />
               )}
 
-              {/* Typing indicator only while waiting (no streaming tokens yet) */}
-              {isProcessing && !streamingContent && <TypingIndicator />}
+              {/* Typing indicator: shown during greeting gen or response gen (no tokens yet) */}
+              {isProcessing && !streamingContent && loadingPhase !== 'data' && <TypingIndicator />}
 
               {/* Error */}
               {error && (
@@ -449,8 +513,8 @@ export default function App() {
         )}
       </main>
 
-      {/* Input */}
-      {sessionActive && (
+      {/* Input — hidden during initial data loading phase */}
+      {sessionActive && loadingPhase !== 'data' && (
         <ChatInput
           onSend={handleSend}
           disabled={isProcessing || needsSetup}

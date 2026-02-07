@@ -40,7 +40,7 @@ export class TopicTrackerAgent {
       const response = await this.chatFn(
         this.systemPrompt,
         [{ role: 'user', content: prompt }],
-        { temperature: 0.2, maxTokens: 1024 },
+        { temperature: 0.2, maxTokens: 4096 },
       );
 
       const jsonStr = response.replace(/```json\s*|```\s*/g, '').trim();
