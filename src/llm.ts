@@ -69,7 +69,7 @@ async function chatAnthropic(
   const client = getAnthropic();
 
   const anthropicMessages = messages
-    .filter(m => m.role !== 'system')
+    .filter(m => m.role !== 'system' && m.content.trim().length > 0)
     .map(m => ({
       role: m.role as 'user' | 'assistant',
       content: m.content,
@@ -101,10 +101,12 @@ async function chatOpenAI(
 
   const openaiMessages = [
     { role: 'system' as const, content: systemPrompt },
-    ...messages.map(m => ({
-      role: m.role as 'system' | 'user' | 'assistant',
-      content: m.content,
-    })),
+    ...messages
+      .filter(m => m.content.trim().length > 0)
+      .map(m => ({
+        role: m.role as 'system' | 'user' | 'assistant',
+        content: m.content,
+      })),
   ];
 
   const response = await client.chat.completions.create({
@@ -134,11 +136,19 @@ async function chatGoogle(
     },
   });
 
-  // Build content history from messages
-  const history = messages.slice(0, -1).map(m => ({
-    role: m.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: m.content }],
-  }));
+  // Build content history from messages, filtering out empty content
+  const history = messages
+    .slice(0, -1)
+    .filter(m => m.content.trim().length > 0)
+    .map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    }));
+
+  // Gemini requires history to start with 'user' — drop leading 'model' entries
+  while (history.length > 0 && history[0].role === 'model') {
+    history.shift();
+  }
 
   const chatSession = genModel.startChat({ history });
   const lastMessage = messages[messages.length - 1];
